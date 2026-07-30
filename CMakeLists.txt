@@ -10,6 +10,7 @@ project(
 )
 
 include(CTest)
+include(CheckCXXSourceRuns)
 include(FetchContent)
 include(GNUInstallDirs)
 
@@ -82,17 +83,33 @@ target_link_libraries(
 
 if(BENGAL_MARKET_BUILD_LIVE)
   find_package(CURL 7.86 REQUIRED)
-  find_program(CURL_CONFIG_EXECUTABLE NAMES curl-config REQUIRED)
-  execute_process(
-    COMMAND "${CURL_CONFIG_EXECUTABLE}" --protocols
-    RESULT_VARIABLE curl_protocols_result
-    OUTPUT_VARIABLE curl_protocols
-    OUTPUT_STRIP_TRAILING_WHITESPACE
+  set(CMAKE_REQUIRED_LIBRARIES CURL::libcurl)
+  check_cxx_source_runs(
+    [=[
+      #include <curl/curl.h>
+      #include <cstddef>
+
+      int main() {
+        if (curl_global_init(CURL_GLOBAL_DEFAULT) != CURLE_OK) {
+          return 1;
+        }
+        CURL* handle = curl_easy_init();
+        if (handle == nullptr) {
+          curl_global_cleanup();
+          return 1;
+        }
+        std::size_t sent = 0;
+        const auto result =
+            curl_ws_send(handle, "", 0, &sent, 0, CURLWS_TEXT);
+        curl_easy_cleanup(handle);
+        curl_global_cleanup();
+        return result == CURLE_NOT_BUILT_IN ? 1 : 0;
+      }
+    ]=]
+    BENGAL_MARKET_CURL_HAS_WEBSOCKETS
   )
-  if(
-    NOT curl_protocols_result EQUAL 0
-    OR NOT curl_protocols MATCHES "(^|[\r\n])WSS([\r\n]|$)"
-  )
+  unset(CMAKE_REQUIRED_LIBRARIES)
+  if(NOT BENGAL_MARKET_CURL_HAS_WEBSOCKETS)
     message(FATAL_ERROR "libcurl must be built with WSS protocol support")
   endif()
   add_library(bengal_market_live STATIC src/live.cpp)
