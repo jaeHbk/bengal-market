@@ -1,0 +1,25 @@
+# CMake and build outputs
+/build*/
+/out/
+/staging/
+CMakeUserPresets.json
+compile_commands.json
+
+# Generated capture and benchmark data
+/*.jsonl
+/*.jsonl.gz
+/artifacts/
+/benchmark-results/
+
+# Editors and operating systems
+.cache/
+.clangd/
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local environment
+.env
+.env.*

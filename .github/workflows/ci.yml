@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: "1"
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: GCC
+            cxx: g++
+          - name: Clang
+            cxx: clang++
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake g++ git libcurl4-openssl-dev ninja-build
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DCMAKE_CXX_COMPILER=${{ matrix.cxx }}
+          -DBENGAL_MARKET_BUILD_TESTS=ON
+          -DBENGAL_MARKET_ENABLE_SANITIZERS=OFF
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  package:
+    name: Package Linux x86-64
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: build-and-test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ git libcurl4-openssl-dev ninja-build
+
+      - name: Configure release
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DBENGAL_MARKET_BUILD_TESTS=ON
+          -DBENGAL_MARKET_ENABLE_SANITIZERS=OFF
+
+      - name: Build and test
+        run: |
+          cmake --build build --parallel 2
+          ctest --test-dir build --output-on-failure
+
+      - name: Install staging tree
+        run: cmake --install build --prefix staging/usr/local
+
+      - name: Create package
+        run: |
+          version="${GITHUB_SHA::12}"
+          archive="bengal-market-${version}-linux-x86_64.tar.gz"
+          tar -C staging -czf "${archive}" .
+          sha256sum "${archive}" > SHA256SUMS
+          mkdir -p artifacts
+          mv "${archive}" SHA256SUMS artifacts/
+
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: bengal-market-linux-x86_64
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14

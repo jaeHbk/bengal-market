@@ -1,0 +1,79 @@
+name: Sanitizers
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sanitizers-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CTEST_OUTPUT_ON_FAILURE: "1"
+
+jobs:
+  address-undefined:
+    name: ASan and UBSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      ASAN_OPTIONS: detect_leaks=1:halt_on_error=1:strict_string_checks=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake git libcurl4-openssl-dev ninja-build
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_CXX_COMPILER=clang++
+          -DBENGAL_MARKET_BUILD_TESTS=ON
+          -DBENGAL_MARKET_ENABLE_SANITIZERS=ON
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  thread:
+    name: TSan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ git libcurl4-openssl-dev ninja-build
+
+      - name: Configure
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_COMPILER=g++ \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread" \
+            -DBENGAL_MARKET_BUILD_TESTS=ON \
+            -DBENGAL_MARKET_ENABLE_SANITIZERS=OFF
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
