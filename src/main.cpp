@@ -42,8 +42,8 @@ arguments parse_arguments(int argc, char** argv, int start) {
   return result;
 }
 
-const std::string& required(const arguments& values,
-                            const std::string& name) {
+std::string required(const arguments& values,
+                     const std::string& name) {
   const auto found = values.find(name);
   if (found == values.end() || found->second.empty()) {
     throw std::invalid_argument("missing --" + name);

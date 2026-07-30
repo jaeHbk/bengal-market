@@ -104,7 +104,9 @@ void hash_integer(std::uint64_t& hash, Integer value) noexcept {
   for (std::size_t index = 0; index < sizeof(bits); ++index) {
     hash ^= static_cast<unsigned char>(bits & 0xffU);
     hash *= 1099511628211ULL;
-    bits >>= 8U;
+    if constexpr (sizeof(unsigned_type) > 1) {
+      bits >>= 8U;
+    }
   }
 }
 
