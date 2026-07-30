@@ -26,6 +26,7 @@ The first release is planned to include:
 Dependencies:
 
 - Bengal `v1.0.0` (`1bd5389db9fd802e4c836426dc94288f268cb543`)
+- curl `8.17.0` (`400fffa90f30c7a2dc762fa33009d24851bd2016`)
 - nlohmann/json `v3.11.3`
 
 [Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.1.0...HEAD

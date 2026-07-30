@@ -26,14 +26,14 @@ market-beating, or broker-latency claims.
 - Linux on x86-64 or ARM64
 - C++20 compiler: GCC 11 or Clang 14, or newer
 - CMake 3.20 or newer
-- libcurl 7.86 or newer with WebSocket support for live capture
+- OpenSSL development headers for the pinned live-capture transport
 - Git for resolving pinned source dependencies
 
 Ubuntu and Debian users can install build dependencies with:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential cmake git libcurl4-openssl-dev ninja-build
+sudo apt-get install -y build-essential cmake git libssl-dev ninja-build
 ```
 
 ## Build
@@ -46,13 +46,18 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-Live capture is enabled by default. An offline build can omit libcurl:
+Live capture is enabled by default and builds pinned libcurl `8.17.0` with
+WebSocket support. An offline build can omit that dependency:
 
 ```sh
 cmake -S . -B build -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \
   -DBENGAL_MARKET_BUILD_LIVE=OFF
 ```
+
+A compatible system libcurl can be selected with
+`-DBENGAL_MARKET_USE_SYSTEM_CURL=ON`; configuration rejects system builds where
+the WebSocket API returns `CURLE_NOT_BUILT_IN`.
 
 Tagged source pins Bengal `v1.0.0` and nlohmann/json to immutable commits. To
 validate a local Bengal checkout, configure with

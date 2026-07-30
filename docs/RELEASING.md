@@ -63,7 +63,7 @@ The final notes must state:
 Bengal Market: 0.1.0
 Bengal dependency: vX.Y.Z (commit ...)
 Recording format: reads v1, writes v1
-Artifact: Linux x86-64, dynamically linked libcurl
+Artifact: Linux x86-64, pinned static libcurl with platform OpenSSL runtime
 ```
 
 Include notable changes, upgrade instructions, known limitations, and evidence
