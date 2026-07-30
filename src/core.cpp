@@ -362,11 +362,7 @@ parse_metrics read_capture(const std::filesystem::path& input,
   }
 
   parse_metrics metrics;
-  std::unordered_map<
-      std::uint64_t,
-      std::unordered_map<std::string, std::uint64_t>>
-      last_sequences;
-  std::size_t sequence_streams = 0;
+  std::unordered_map<std::uint64_t, std::uint64_t> last_sequences;
   bool metadata_seen = false;
   std::string line;
   line.reserve(64 * 1024);
@@ -423,37 +419,23 @@ parse_metrics read_capture(const std::filesystem::path& input,
       }
       const auto sequence =
           payload.at("sequence_num").get<std::uint64_t>();
-      auto connection = last_sequences.find(connection_id);
-      if (connection == last_sequences.end()) {
-        if (sequence_streams == maximum_sequence_streams) {
+      const auto previous = last_sequences.find(connection_id);
+      if (previous == last_sequences.end()) {
+        if (last_sequences.size() == maximum_sequence_streams) {
           throw std::runtime_error(
               "capture exceeds sequence-stream limit");
         }
-        connection =
-            last_sequences.emplace(connection_id, decltype(
-                last_sequences)::mapped_type{})
-                .first;
-      }
-      auto& connection_sequences = connection->second;
-      const auto previous = connection_sequences.find(channel);
-      if (previous != connection_sequences.end()) {
+        last_sequences.emplace(connection_id, sequence);
+      } else {
         if (sequence > previous->second &&
             sequence - previous->second > 1) {
           metrics.sequence_gaps += sequence - previous->second - 1;
         } else if (sequence <= previous->second) {
           ++metrics.out_of_order;
         }
-      }
-      if (previous == connection_sequences.end() ||
-          sequence > previous->second) {
-        if (previous == connection_sequences.end()) {
-          if (sequence_streams == maximum_sequence_streams) {
-            throw std::runtime_error(
-                "capture exceeds sequence-stream limit");
-          }
-          ++sequence_streams;
+        if (sequence > previous->second) {
+          previous->second = sequence;
         }
-        connection_sequences[channel] = sequence;
       }
 
       if (channel != "market_trades") {

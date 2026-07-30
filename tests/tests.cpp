@@ -80,15 +80,17 @@ void sequence_tests() {
       << '\n'
       << R"({"type":"frame","received_ns":1,"connection_id":1,"payload":"{\"channel\":\"heartbeats\",\"sequence_num\":40}"})"
       << '\n'
-      << R"({"type":"frame","received_ns":2,"connection_id":1,"payload":"{\"channel\":\"market_trades\",\"sequence_num\":7,\"events\":[]}"})"
+      << R"({"type":"frame","received_ns":2,"connection_id":1,"payload":"{\"channel\":\"market_trades\",\"sequence_num\":42,\"events\":[]}"})"
       << '\n'
-      << R"({"type":"frame","received_ns":3,"connection_id":1,"payload":"{\"channel\":\"market_trades\",\"sequence_num\":9,\"events\":[]}"})"
+      << R"({"type":"frame","received_ns":3,"connection_id":1,"payload":"{\"channel\":\"market_trades\",\"sequence_num\":41,\"events\":[]}"})"
       << '\n';
   stream.close();
   const auto report = bengal_market::replay(
       path, bengal_market::pipeline_engine::bengal);
   check(report.input.sequence_gaps == 1,
-        "sequence gaps are tracked independently per channel");
+        "sequence gaps include interleaved channels");
+  check(report.input.out_of_order == 1,
+        "lower connection sequence is out of order");
   check(report.input.parse_errors == 0,
         "heartbeat frames do not cause parse errors");
   std::filesystem::remove(path);

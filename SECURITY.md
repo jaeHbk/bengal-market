@@ -24,7 +24,7 @@ oversized messages, invalid UTF-8, and incompatible format versions without
 memory-unsafe behavior.
 
 Version 0.1 limits live provider messages to 4 MiB, recording lines to 8 MiB,
-and tracked connection/channel sequence streams to 4,096. These are safety
+and tracked connection sequence streams to 4,096. These are safety
 ceilings, not provider guarantees.
 
 The product does not need and must not request:
