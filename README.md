@@ -157,3 +157,5 @@ notes identify compatibility changes and the exact Bengal release consumed.
 ## License
 
 Bengal Market is available under the [MIT License](LICENSE).
+Dependency licenses are reproduced in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
