@@ -144,6 +144,7 @@ valid improvement. See [Benchmarking](docs/BENCHMARKING.md) and
 - [Benchmark methodology](docs/BENCHMARKING.md)
 - [Operations](docs/OPERATIONS.md)
 - [Reproducibility](docs/REPRODUCIBILITY.md)
+- [0.1 release validation](docs/VALIDATION_0.1.md)
 - [Release process](docs/RELEASING.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)

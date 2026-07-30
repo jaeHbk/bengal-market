@@ -6,6 +6,8 @@ All notable changes are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-30
+
 ### Added
 
 - Linux-first public market-data capture product specification.
@@ -13,9 +15,7 @@ All notable changes are recorded here. This project follows
 - Versioned raw JSON Lines recording format.
 - CI, sanitizer, and tagged Linux artifact workflows.
 
-## [0.1.0] - Unreleased
-
-The first release is planned to include:
+The first release includes:
 
 - read-only Coinbase Advanced Trade WebSocket capture;
 - deterministic offline fixture generation and replay;
