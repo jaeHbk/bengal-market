@@ -1,5 +1,6 @@
 #include <bengal_market/live.hpp>
 #include <bengal_market/model.hpp>
+#include <bengal_market/version.hpp>
 
 #include <charconv>
 #include <chrono>
@@ -97,7 +98,7 @@ int main(int argc, char** argv) {
       return 0;
     }
     if (argc == 2 && std::string_view(argv[1]) == "--version") {
-      std::cout << "bengal-market 0.1.0\n";
+      std::cout << "bengal-market " << bengal_market::version << '\n';
       return 0;
     }
     if (argc < 2) {
@@ -126,11 +127,12 @@ int main(int argc, char** argv) {
       } else {
         throw std::invalid_argument("--engine must be bengal or standard");
       }
-      std::cout << bengal_market::report_json(
-                       bengal_market::replay(required(options, "input"),
-                                             engine))
-                << '\n';
-      return 0;
+      const auto report =
+          bengal_market::replay(required(options, "input"), engine);
+      std::cout << bengal_market::report_json(report) << '\n';
+      return report.input.parse_errors == 0 && report.dropped == 0
+                 ? 0
+                 : 1;
     }
     if (command == "compare") {
       reject_unknown(options, {"input"});
@@ -140,8 +142,7 @@ int main(int argc, char** argv) {
       const auto standard = bengal_market::replay(
           input, bengal_market::pipeline_engine::standard);
       std::cout << bengal_market::comparison_json(bengal, standard) << '\n';
-      return bengal.events == standard.events &&
-                     bengal.checksum == standard.checksum
+      return bengal_market::reports_comparable(bengal, standard)
                  ? 0
                  : 1;
     }

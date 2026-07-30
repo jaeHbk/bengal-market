@@ -1,6 +1,7 @@
 #include <bengal_market/model.hpp>
 
 #include <bengal/concurrency/spsc_queue.hpp>
+#include <bengal/version.hpp>
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -29,6 +30,8 @@ namespace {
 
 using json = nlohmann::json;
 using clock_type = std::chrono::steady_clock;
+constexpr std::size_t maximum_record_size = 8 * 1024 * 1024;
+constexpr std::size_t maximum_sequence_streams = 4096;
 
 std::uint64_t now_ns() noexcept {
   return static_cast<std::uint64_t>(
@@ -117,6 +120,7 @@ std::uint64_t update_checksum(std::uint64_t hash,
   hash_integer(hash, value.price);
   hash_integer(hash, value.size);
   hash_integer(hash, static_cast<std::uint8_t>(value.side));
+  hash_integer(hash, value.source_time_ns);
   return hash;
 }
 
@@ -224,36 +228,129 @@ class pipeline {
   bool finished_{false};
 };
 
-std::optional<std::uint64_t> parse_timestamp_ns(
-    std::string_view value) noexcept {
-  const auto dot = value.find('.');
-  const auto time_start = value.find('T');
-  if (dot == std::string_view::npos ||
-      time_start == std::string_view::npos ||
-      dot <= time_start + 1) {
+std::optional<unsigned> parse_component(std::string_view value,
+                                        std::size_t offset,
+                                        std::size_t length) noexcept {
+  if (offset + length > value.size()) {
     return std::nullopt;
   }
-  std::uint64_t fractional = 0;
-  std::size_t digits = 0;
-  for (std::size_t index = dot + 1;
-       index < value.size() && digits < 9;
-       ++index) {
+  unsigned result = 0;
+  for (std::size_t index = offset; index < offset + length; ++index) {
     const char character = value[index];
     if (character < '0' || character > '9') {
-      break;
+      return std::nullopt;
     }
-    fractional =
-        fractional * 10 + static_cast<unsigned>(character - '0');
-    ++digits;
+    result = result * 10 + static_cast<unsigned>(character - '0');
   }
-  if (digits == 0) {
+  return result;
+}
+
+bool is_leap_year(unsigned year) noexcept {
+  return year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+}
+
+unsigned days_in_month(unsigned year, unsigned month) noexcept {
+  constexpr std::array<unsigned, 12> days{
+      31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  if (month == 2 && is_leap_year(year)) {
+    return 29;
+  }
+  return days[month - 1];
+}
+
+std::int64_t days_from_civil(int year,
+                             unsigned month,
+                             unsigned day) noexcept {
+  year -= month <= 2;
+  const int era = (year >= 0 ? year : year - 399) / 400;
+  const auto year_of_era =
+      static_cast<unsigned>(year - era * 400);
+  const auto day_of_year =
+      (153 * (month > 2 ? month - 3 : month + 9) + 2) / 5 +
+      day - 1;
+  const auto day_of_era =
+      year_of_era * 365 + year_of_era / 4 -
+      year_of_era / 100 + day_of_year;
+  return static_cast<std::int64_t>(era) * 146097 +
+         static_cast<std::int64_t>(day_of_era) - 719468;
+}
+
+std::optional<std::uint64_t> parse_timestamp_ns(
+    std::string_view value) noexcept {
+  if (value.size() < 20 || value[4] != '-' || value[7] != '-' ||
+      value[10] != 'T' || value[13] != ':' || value[16] != ':') {
     return std::nullopt;
   }
-  while (digits < 9) {
-    fractional *= 10;
-    ++digits;
+  const auto year = parse_component(value, 0, 4);
+  const auto month = parse_component(value, 5, 2);
+  const auto day = parse_component(value, 8, 2);
+  const auto hour = parse_component(value, 11, 2);
+  const auto minute = parse_component(value, 14, 2);
+  const auto second = parse_component(value, 17, 2);
+  if (!year || !month || !day || !hour || !minute || !second ||
+      *year < 1970 || *month < 1 || *month > 12 ||
+      *day < 1 || *day > days_in_month(*year, *month) ||
+      *hour > 23 || *minute > 59 || *second > 59) {
+    return std::nullopt;
   }
-  return fractional;
+
+  std::uint64_t fraction = 0;
+  std::size_t fraction_digits = 0;
+  std::size_t cursor = 19;
+  if (value[cursor] == '.') {
+    ++cursor;
+    while (cursor < value.size() && value[cursor] != 'Z') {
+      if (fraction_digits == 9 ||
+          value[cursor] < '0' || value[cursor] > '9') {
+        return std::nullopt;
+      }
+      fraction =
+          fraction * 10 + static_cast<unsigned>(value[cursor] - '0');
+      ++fraction_digits;
+      ++cursor;
+    }
+    if (fraction_digits == 0) {
+      return std::nullopt;
+    }
+  }
+  if (cursor + 1 != value.size() || value[cursor] != 'Z') {
+    return std::nullopt;
+  }
+  while (fraction_digits < 9) {
+    fraction *= 10;
+    ++fraction_digits;
+  }
+
+  const auto days =
+      days_from_civil(static_cast<int>(*year), *month, *day);
+  if (days < 0) {
+    return std::nullopt;
+  }
+  const auto seconds =
+      static_cast<std::uint64_t>(days) * 86'400 +
+      static_cast<std::uint64_t>(*hour) * 3'600 +
+      static_cast<std::uint64_t>(*minute) * 60 + *second;
+  if (seconds >
+      (std::numeric_limits<std::uint64_t>::max() - fraction) /
+          1'000'000'000ULL) {
+    return std::nullopt;
+  }
+  return seconds * 1'000'000'000ULL + fraction;
+}
+
+bool read_bounded_line(std::istream& stream, std::string& line) {
+  line.clear();
+  char character = '\0';
+  while (stream.get(character)) {
+    if (character == '\n') {
+      return true;
+    }
+    if (line.size() == maximum_record_size) {
+      throw std::runtime_error("capture record exceeds 8 MiB limit");
+    }
+    line.push_back(character);
+  }
+  return !line.empty();
 }
 
 template <typename Consumer>
@@ -269,9 +366,11 @@ parse_metrics read_capture(const std::filesystem::path& input,
       std::uint64_t,
       std::unordered_map<std::string, std::uint64_t>>
       last_sequences;
+  std::size_t sequence_streams = 0;
   bool metadata_seen = false;
   std::string line;
-  while (std::getline(stream, line)) {
+  line.reserve(64 * 1024);
+  while (read_bounded_line(stream, line)) {
     if (line.empty()) {
       continue;
     }
@@ -284,6 +383,20 @@ parse_metrics read_capture(const std::filesystem::path& input,
             record.at("version") != 1) {
           throw std::runtime_error("unsupported capture metadata");
         }
+        (void)record.at("source").get_ref<const std::string&>();
+        const auto& product_ids = record.at("product_ids");
+        if (!product_ids.is_array() || product_ids.empty()) {
+          throw std::runtime_error(
+              "capture metadata requires product IDs");
+        }
+        for (const auto& product_id : product_ids) {
+          const auto& product =
+              product_id.get_ref<const std::string&>();
+          if (product.empty() || product.size() > 20) {
+            throw std::runtime_error(
+                "invalid metadata product ID");
+          }
+        }
         metadata_seen = true;
         continue;
       }
@@ -295,20 +408,37 @@ parse_metrics read_capture(const std::filesystem::path& input,
       }
 
       ++metrics.frames;
+      (void)record.at("received_ns").get<std::uint64_t>();
       const auto connection_id =
           record.at("connection_id").get<std::uint64_t>();
       const auto payload =
           json::parse(record.at("payload").get<std::string>());
+      const auto channel = payload.at("channel").get<std::string>();
       if (!payload.contains("sequence_num")) {
+        if (channel == "market_trades" || channel == "heartbeats") {
+          throw std::runtime_error(
+              "data channel payload has no sequence number");
+        }
         continue;
       }
       const auto sequence =
           payload.at("sequence_num").get<std::uint64_t>();
-      const auto channel = payload.at("channel").get<std::string>();
-      auto& connection_sequences = last_sequences[connection_id];
+      auto connection = last_sequences.find(connection_id);
+      if (connection == last_sequences.end()) {
+        if (sequence_streams == maximum_sequence_streams) {
+          throw std::runtime_error(
+              "capture exceeds sequence-stream limit");
+        }
+        connection =
+            last_sequences.emplace(connection_id, decltype(
+                last_sequences)::mapped_type{})
+                .first;
+      }
+      auto& connection_sequences = connection->second;
       const auto previous = connection_sequences.find(channel);
       if (previous != connection_sequences.end()) {
-        if (sequence > previous->second + 1) {
+        if (sequence > previous->second &&
+            sequence - previous->second > 1) {
           metrics.sequence_gaps += sequence - previous->second - 1;
         } else if (sequence <= previous->second) {
           ++metrics.out_of_order;
@@ -316,6 +446,13 @@ parse_metrics read_capture(const std::filesystem::path& input,
       }
       if (previous == connection_sequences.end() ||
           sequence > previous->second) {
+        if (previous == connection_sequences.end()) {
+          if (sequence_streams == maximum_sequence_streams) {
+            throw std::runtime_error(
+                "capture exceeds sequence-stream limit");
+          }
+          ++sequence_streams;
+        }
         connection_sequences[channel] = sequence;
       }
 
@@ -377,6 +514,7 @@ replay_report replay_with(const std::filesystem::path& input,
 json report_value(const replay_report& report) {
   return {
       {"schema_version", 1},
+      {"bengal_version", bengal::version},
       {"engine", report.engine},
       {"input",
        {{"frames", report.input.frames},
@@ -571,12 +709,22 @@ std::string comparison_json(const replay_report& bengal,
                             const replay_report& standard) {
   return json{
       {"schema_version", 1},
-      {"comparable",
-       bengal.events == standard.events &&
-           bengal.checksum == standard.checksum},
+      {"comparable", reports_comparable(bengal, standard)},
       {"bengal", report_value(bengal)},
       {"standard", report_value(standard)}}
       .dump(2);
+}
+
+bool reports_comparable(const replay_report& bengal,
+                        const replay_report& standard) noexcept {
+  return bengal.input.frames == standard.input.frames &&
+         bengal.input.parse_errors == 0 &&
+         standard.input.parse_errors == 0 &&
+         bengal.events == standard.events &&
+         bengal.checksum == standard.checksum &&
+         bengal.dropped == 0 && standard.dropped == 0 &&
+         bengal.stage_latency.samples == bengal.events &&
+         standard.stage_latency.samples == standard.events;
 }
 
 }  // namespace bengal_market

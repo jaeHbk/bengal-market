@@ -86,5 +86,7 @@ void generate_fixture(const std::filesystem::path& output,
 std::string report_json(const replay_report& report);
 std::string comparison_json(const replay_report& bengal,
                             const replay_report& standard);
+bool reports_comparable(const replay_report& bengal,
+                        const replay_report& standard) noexcept;
 
 }  // namespace bengal_market

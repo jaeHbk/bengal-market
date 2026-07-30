@@ -17,7 +17,7 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE: "1"
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -25,6 +25,14 @@ jobs:
         run: |
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must be vMAJOR.MINOR.PATCH." >&2
+            exit 1
+          fi
+          project_version="$(
+            sed -n 's/^set(BENGAL_MARKET_VERSION \([^)]*\))$/\1/p' \
+              CMakeLists.txt
+          )"
+          if [[ "${GITHUB_REF_NAME}" != "v${project_version}" ]]; then
+            echo "Tag does not match project version ${project_version}." >&2
             exit 1
           fi
 
@@ -46,7 +54,11 @@ jobs:
           ctest --test-dir build --output-on-failure
 
       - name: Install staging tree
-        run: cmake --install build --prefix staging/usr/local
+        run: |
+          cmake --install build --prefix staging/usr/local
+          test "$(
+            staging/usr/local/bin/bengal-market --version
+          )" = "bengal-market ${GITHUB_REF_NAME#v}"
 
       - name: Create reproducible archive
         run: |

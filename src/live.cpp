@@ -38,6 +38,21 @@ class curl_global_state {
     if (result != CURLE_OK) {
       throw std::runtime_error("curl global initialization failed");
     }
+    const auto* version = curl_version_info(CURLVERSION_NOW);
+    bool supports_wss = false;
+    if (version != nullptr && version->protocols != nullptr) {
+      for (const char* const* protocol = version->protocols;
+           *protocol != nullptr;
+           ++protocol) {
+        supports_wss = supports_wss ||
+                       std::string_view(*protocol) == "wss";
+      }
+    }
+    if (!supports_wss) {
+      curl_global_cleanup();
+      throw std::runtime_error(
+          "libcurl was built without WSS protocol support");
+    }
   }
 
   curl_global_state(const curl_global_state&) = delete;
@@ -83,7 +98,10 @@ void send_all(CURL* handle,
                      0,
                      flags);
     if (result == CURLE_AGAIN) {
-      wait_socket(handle, POLLOUT, 1'000);
+      offset += sent;
+      if (offset < payload.size()) {
+        wait_socket(handle, POLLOUT, 1'000);
+      }
       continue;
     }
     check(result, "send WebSocket frame");
@@ -194,12 +212,16 @@ capture_result capture_live(const capture_options& options) {
               "WebSocket frame metadata missing");
         }
         if ((metadata->flags & CURLWS_CLOSE) != 0U) {
-          break;
+          throw std::runtime_error("server closed WebSocket");
         }
         if ((metadata->flags & (CURLWS_PING | CURLWS_PONG)) != 0U) {
           continue;
         }
-        if ((metadata->flags & (CURLWS_TEXT | CURLWS_CONT)) == 0U) {
+        if ((metadata->flags & CURLWS_BINARY) != 0U) {
+          message.clear();
+          continue;
+        }
+        if ((metadata->flags & CURLWS_TEXT) == 0U) {
           continue;
         }
         if (received > maximum_message_size - message.size()) {

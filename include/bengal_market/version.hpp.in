@@ -1,0 +1,9 @@
+#pragma once
+
+#include <string_view>
+
+namespace bengal_market {
+
+inline constexpr std::string_view version = "@BENGAL_MARKET_VERSION@";
+
+}  // namespace bengal_market

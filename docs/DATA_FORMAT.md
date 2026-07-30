@@ -83,6 +83,7 @@ Coinbase sequence numbers are data-quality evidence:
 - a value above the next expected number records a sequence gap;
 - a lower value records an out-of-order observation;
 - a new `connection_id` starts new sequence tracking; and
+- each provider channel has independent sequence tracking; and
 - a gap is reported, not repaired or filled with synthetic trades.
 
 Consumers must not infer that a recording is complete solely because every

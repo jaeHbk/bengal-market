@@ -31,7 +31,7 @@ jobs:
             cxx: clang++
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install build dependencies
         run: |
@@ -50,7 +50,10 @@ jobs:
         run: cmake --build build --parallel 2
 
       - name: Test
-        run: ctest --test-dir build --output-on-failure
+        run: |
+          ctest --test-dir build --output-on-failure
+          ./build/bengal-market generate --output fixture.jsonl --events 20000
+          ./build/bengal-market compare --input fixture.jsonl
 
   package:
     name: Package Linux x86-64
@@ -59,7 +62,7 @@ jobs:
     needs: build-and-test
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install build dependencies
         run: |
@@ -79,7 +82,9 @@ jobs:
           ctest --test-dir build --output-on-failure
 
       - name: Install staging tree
-        run: cmake --install build --prefix staging/usr/local
+        run: |
+          cmake --install build --prefix staging/usr/local
+          staging/usr/local/bin/bengal-market --version
 
       - name: Create package
         run: |

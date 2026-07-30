@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
 
+set(BENGAL_MARKET_VERSION 0.1.0)
+
 project(
   BengalMarket
-  VERSION 0.1.0
+  VERSION ${BENGAL_MARKET_VERSION}
   DESCRIPTION "Reproducible market-data capture and bounded-pipeline comparison"
   LANGUAGES CXX
 )
@@ -10,6 +12,12 @@ project(
 include(CTest)
 include(FetchContent)
 include(GNUInstallDirs)
+
+configure_file(
+  include/bengal_market/version.hpp.in
+  generated/bengal_market/version.hpp
+  @ONLY
+)
 
 option(BENGAL_MARKET_BUILD_TESTS "Build bengal-market tests" ON)
 option(BENGAL_MARKET_BUILD_LIVE "Build the Coinbase live capture adapter" ON)
@@ -41,7 +49,7 @@ else()
   FetchContent_Declare(
     bengal
     GIT_REPOSITORY https://github.com/jaeHbk/bengal.git
-    GIT_TAG b27e25c8286bc044dc88301fecae9632acb44488
+    GIT_TAG 1bd5389db9fd802e4c836426dc94288f268cb543
     GIT_SHALLOW FALSE
   )
   FetchContent_MakeAvailable(bengal)
@@ -62,7 +70,9 @@ add_library(bengal_market_core STATIC src/core.cpp)
 target_compile_features(bengal_market_core PUBLIC cxx_std_20)
 target_include_directories(
   bengal_market_core
-  PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 target_link_libraries(
   bengal_market_core
@@ -72,6 +82,19 @@ target_link_libraries(
 
 if(BENGAL_MARKET_BUILD_LIVE)
   find_package(CURL 7.86 REQUIRED)
+  find_program(CURL_CONFIG_EXECUTABLE NAMES curl-config REQUIRED)
+  execute_process(
+    COMMAND "${CURL_CONFIG_EXECUTABLE}" --protocols
+    RESULT_VARIABLE curl_protocols_result
+    OUTPUT_VARIABLE curl_protocols
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if(
+    NOT curl_protocols_result EQUAL 0
+    OR NOT curl_protocols MATCHES "(^|[\r\n])WSS([\r\n]|$)"
+  )
+    message(FATAL_ERROR "libcurl must be built with WSS protocol support")
+  endif()
   add_library(bengal_market_live STATIC src/live.cpp)
   target_compile_features(bengal_market_live PUBLIC cxx_std_20)
   target_include_directories(

@@ -54,8 +54,8 @@ cmake -S . -B build -G Ninja \
   -DBENGAL_MARKET_BUILD_LIVE=OFF
 ```
 
-Tagged source pins Bengal and nlohmann/json to immutable commits. To validate a
-local Bengal checkout, configure with
+Tagged source pins Bengal `v1.0.0` and nlohmann/json to immutable commits. To
+validate a local Bengal checkout, configure with
 `-DBENGAL_SOURCE_DIR=/absolute/path/to/bengal`. Results made with an override
 must identify the Bengal commit and must not be presented as release results.
 

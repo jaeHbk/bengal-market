@@ -23,5 +23,10 @@ The first release is planned to include:
 - data-quality, backpressure, drop, checksum, and latency metrics; and
 - reproducible Linux release artifacts.
 
+Dependencies:
+
+- Bengal `v1.0.0` (`1bd5389db9fd802e4c836426dc94288f268cb543`)
+- nlohmann/json `v3.11.3`
+
 [Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/jaeHbk/bengal-market/releases/tag/v0.1.0
