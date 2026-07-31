@@ -36,7 +36,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake g++ git libssl-dev ninja-build
+          sudo apt-get install -y clang cmake g++ git libssl-dev ninja-build python3
 
       - name: Configure
         run: >-
@@ -67,7 +67,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ git libssl-dev ninja-build
+          sudo apt-get install -y cmake g++ git libssl-dev ninja-build python3
 
       - name: Configure release
         run: >-
@@ -85,6 +85,19 @@ jobs:
         run: |
           cmake --install build --prefix staging/usr/local
           staging/usr/local/bin/bengal-market --version
+          if ldd staging/usr/local/bin/bengal-market |
+              grep -E 'libcurl|libssh|libnghttp|libpsl|libbrotli|libzstd'; then
+            echo "Package has an unexpected optional curl dependency." >&2
+            exit 1
+          fi
+          staging/usr/local/bin/bengal-market generate \
+            --output package-fixture.jsonl --events 2000
+          staging/usr/local/bin/bengal-market benchmark \
+            --input package-fixture.jsonl \
+            --output package-evidence \
+            --runs 2 --warmup 1
+          test -f package-evidence/manifest.json
+          test -f package-evidence/report.html
 
       - name: Create package
         run: |

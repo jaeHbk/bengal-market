@@ -27,6 +27,12 @@ The same recording reader and event representation feed the Bengal and
 standard C++ pipeline implementations. A comparison is valid only when both
 produce equivalent logical output and report overload independently.
 
+Live capture writes records to a same-directory `.part` file. Finalization
+syncs file contents, creates the destination without replacing an existing
+file, removes the partial name, and syncs the parent directory. Signal handlers
+only set a `sig_atomic_t`; normal control flow stops network work and commits
+the recording.
+
 ## Capture Path
 
 `capture` connects to:
@@ -91,11 +97,25 @@ event. Reports include minimum, p50, p95, p99, maximum, and sample count.
 Logical output includes a deterministic checksum over normalized processed
 events. Metrics are reported separately for each implementation.
 
+## Benchmark Harness
+
+The benchmark harness invokes the current executable's `replay` command for
+each engine in a new process. One measured iteration runs both engines, and
+which engine runs first alternates by iteration. Warm-ups use the same process
+boundary but are deleted before the evidence bundle is published.
+
+The harness validates every raw report before aggregation. A bundle is
+comparable only when all runs agree on source quality, event count, and
+checksum and report zero parser failures and drops. The output directory is
+assembled under a `.part` name and renamed only after the manifest and HTML
+summary are complete.
+
 ## Ownership and Shutdown
 
 Every queue has one producer and one consumer. Worker lifetime is RAII-owned,
 and normal replay drains accepted work before returning.
 
-Capture finalizes the output after the requested duration. Forced termination
-can interrupt a write, so a truncated final line remains possible and must be
-treated as a parse error during replay.
+Capture finalizes the output after the requested duration or a handled
+`SIGINT`/`SIGTERM`. Unhandled signals, process crashes, power loss, and
+filesystem failures can leave a `.part` file. Partial files are never treated
+as committed recordings.

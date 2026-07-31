@@ -1,5 +1,7 @@
 #include <bengal_market/model.hpp>
 
+#include "atomic_output.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -177,6 +179,64 @@ void validity_tests() {
   std::filesystem::remove(invalid_date);
 }
 
+void atomic_output_tests() {
+  const auto unique =
+      std::chrono::steady_clock::now().time_since_epoch().count();
+  const auto path =
+      std::filesystem::temp_directory_path() /
+      ("bengal-market-atomic-" + std::to_string(unique) + ".jsonl");
+  const auto partial = std::filesystem::path(path.string() + ".part");
+  {
+    bengal_market::detail::atomic_output output(path);
+    output.write_line("complete");
+    check(!std::filesystem::exists(path),
+          "atomic output is hidden before commit");
+    check(std::filesystem::exists(partial),
+          "atomic output uses a visible partial file");
+    output.commit();
+  }
+  check(std::filesystem::exists(path),
+        "atomic output appears after commit");
+  check(!std::filesystem::exists(partial),
+        "partial output is removed after commit");
+  std::ifstream stream(path);
+  std::string line;
+  std::getline(stream, line);
+  check(line == "complete", "committed output retains complete data");
+
+  bool collision_rejected = false;
+  try {
+    bengal_market::detail::atomic_output collision(path);
+  } catch (const std::runtime_error&) {
+    collision_rejected = true;
+  }
+  check(collision_rejected, "atomic output refuses to replace a file");
+  std::filesystem::remove(path);
+
+  const auto abandoned =
+      std::filesystem::temp_directory_path() /
+      ("bengal-market-abandoned-" + std::to_string(unique) + ".jsonl");
+  const auto abandoned_partial =
+      std::filesystem::path(abandoned.string() + ".part");
+  {
+    bengal_market::detail::atomic_output output(abandoned);
+    output.write_line("incomplete");
+  }
+  check(!std::filesystem::exists(abandoned),
+        "abandoned output is not promoted");
+  check(std::filesystem::exists(abandoned_partial),
+        "abandoned output retains its partial file");
+  bool stale_partial_rejected = false;
+  try {
+    bengal_market::detail::atomic_output stale(abandoned);
+  } catch (const std::runtime_error&) {
+    stale_partial_rejected = true;
+  }
+  check(stale_partial_rejected,
+        "atomic output refuses to replace a stale partial");
+  std::filesystem::remove(abandoned_partial);
+}
+
 }  // namespace
 
 int main() {
@@ -185,6 +245,7 @@ int main() {
     replay_tests();
     sequence_tests();
     validity_tests();
+    atomic_output_tests();
   } catch (const std::exception& error) {
     std::cerr << "unexpected exception: " << error.what() << '\n';
     return 1;

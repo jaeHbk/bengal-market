@@ -19,7 +19,7 @@ It does not answer whether, when, or how to trade.
 
 ## Release Surface
 
-The initial product consists of one CLI with four commands:
+The product consists of one CLI with five commands:
 
 | Command | Contract |
 |---|---|
@@ -27,6 +27,7 @@ The initial product consists of one CLI with four commands:
 | `generate` | Produce deterministic offline fixtures from explicit product and size. |
 | `replay` | Process one recording through a selected bounded pipeline. |
 | `compare` | Compare Bengal and standard C++ pipelines against identical input. |
+| `benchmark` | Run alternating fresh-process comparisons and retain evidence. |
 
 A publishable release includes source, a Linux x86-64 installed-tree archive,
 SHA-256 checksums, change notes, the recording-format version, and the exact
@@ -61,15 +62,19 @@ Reusable bounded concurrency, memory, and thread primitives belong in Bengal.
 Provider protocols, market schemas, capture storage, and market-data metrics
 remain in this repository.
 
-## Initial Release Bar
+## 0.2 Release Bar
 
-Version 0.1 is ready when:
+Version 0.2 is ready when:
 
 - GCC and Clang release builds and deterministic tests pass on Linux;
 - ASan/UBSan and TSan jobs pass;
-- malformed and incompatible recordings fail clearly;
-- generated fixtures replay with stable counts and checksums;
-- both comparison pipelines consume equivalent input and expose drops;
-- a short public capture can be recorded and replayed without credentials;
+- benchmark runs execute in fresh child processes with alternating order;
+- evidence retains fixture and executable hashes, environment metadata, raw
+  JSON reports, stderr, aggregate distributions, and an HTML summary;
+- the benchmark fails closed on any logical mismatch, parse error, or drop;
+- live capture finalizes valid recordings after `SIGINT` and `SIGTERM`;
+- incomplete data remains under a visible `.part` name and is never silently
+  promoted or overwritten;
+- a short public capture can be interrupted and replayed without credentials;
 - a clean tag produces a checksummed Linux artifact; and
 - documentation matches the implemented CLI and format.

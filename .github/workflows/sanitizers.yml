@@ -31,7 +31,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake git libssl-dev ninja-build
+          sudo apt-get install -y clang cmake git libssl-dev ninja-build python3
 
       - name: Configure
         run: >-
@@ -60,7 +60,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake g++ git libssl-dev ninja-build
+          sudo apt-get install -y cmake g++ git libssl-dev ninja-build python3
 
       - name: Configure
         run: |

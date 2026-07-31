@@ -1,19 +1,23 @@
 #include <bengal_market/live.hpp>
+#include <bengal_market/version.hpp>
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
+#include <functional>
 #include <memory>
 #include <poll.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
+
+#include "atomic_output.hpp"
 
 namespace bengal_market {
 namespace {
@@ -22,6 +26,24 @@ using json = nlohmann::json;
 using clock_type = std::chrono::steady_clock;
 constexpr std::size_t maximum_message_size = 4 * 1024 * 1024;
 constexpr std::uint64_t maximum_consecutive_failures = 5;
+
+class capture_stopped final : public std::exception {
+ public:
+  const char* what() const noexcept override {
+    return "capture stop requested";
+  }
+};
+
+bool stopped(const std::function<bool()>& stop_requested) noexcept {
+  if (!stop_requested) {
+    return false;
+  }
+  try {
+    return stop_requested();
+  } catch (...) {
+    return true;
+  }
+}
 
 struct curl_deleter {
   void operator()(CURL* handle) const noexcept {
@@ -55,7 +77,13 @@ void check(CURLcode code, std::string_view operation) {
   }
 }
 
-void wait_socket(CURL* handle, short events, int timeout_ms) {
+void wait_socket(CURL* handle,
+                 short events,
+                 int timeout_ms,
+                 const std::function<bool()>& stop_requested) {
+  if (stopped(stop_requested)) {
+    throw capture_stopped{};
+  }
   curl_socket_t socket = CURL_SOCKET_BAD;
   check(curl_easy_getinfo(handle, CURLINFO_ACTIVESOCKET, &socket),
         "get WebSocket socket");
@@ -64,16 +92,23 @@ void wait_socket(CURL* handle, short events, int timeout_ms) {
   }
   pollfd descriptor{socket, events, 0};
   const int result = poll(&descriptor, 1, timeout_ms);
-  if (result < 0) {
+  if (result < 0 && errno != EINTR) {
     throw std::runtime_error("poll failed");
+  }
+  if (stopped(stop_requested)) {
+    throw capture_stopped{};
   }
 }
 
 void send_all(CURL* handle,
               std::string_view payload,
-              unsigned int flags) {
+              unsigned int flags,
+              const std::function<bool()>& stop_requested) {
   std::size_t offset = 0;
   while (offset < payload.size()) {
+    if (stopped(stop_requested)) {
+      throw capture_stopped{};
+    }
     std::size_t sent = 0;
     const auto result =
         curl_ws_send(handle,
@@ -85,7 +120,7 @@ void send_all(CURL* handle,
     if (result == CURLE_AGAIN) {
       offset += sent;
       if (offset < payload.size()) {
-        wait_socket(handle, POLLOUT, 1'000);
+        wait_socket(handle, POLLOUT, 250, stop_requested);
       }
       continue;
     }
@@ -97,7 +132,19 @@ void send_all(CURL* handle,
   }
 }
 
-curl_handle connect(const capture_options& options) {
+int progress_callback(void* context,
+                      curl_off_t,
+                      curl_off_t,
+                      curl_off_t,
+                      curl_off_t) noexcept {
+  const auto* stop_requested =
+      static_cast<const std::function<bool()>*>(context);
+  return stopped(*stop_requested) ? 1 : 0;
+}
+
+curl_handle connect(
+    const capture_options& options,
+    const std::function<bool()>& stop_requested) {
   curl_handle handle(curl_easy_init());
   if (!handle) {
     throw std::runtime_error("curl handle allocation failed");
@@ -109,23 +156,37 @@ curl_handle connect(const capture_options& options) {
         "enable WebSocket mode");
   check(curl_easy_setopt(handle.get(), CURLOPT_CONNECTTIMEOUT, 10L),
         "set connect timeout");
+  check(curl_easy_setopt(handle.get(), CURLOPT_NOPROGRESS, 0L),
+        "enable stop callback");
   check(curl_easy_setopt(
-            handle.get(), CURLOPT_USERAGENT, "bengal-market/0.1"),
+            handle.get(), CURLOPT_XFERINFOFUNCTION, progress_callback),
+        "set stop callback");
+  check(curl_easy_setopt(
+            handle.get(), CURLOPT_XFERINFODATA, &stop_requested),
+        "set stop callback state");
+  const auto user_agent = "bengal-market/" + std::string(version);
+  check(curl_easy_setopt(
+            handle.get(), CURLOPT_USERAGENT, user_agent.c_str()),
         "set user agent");
-  check(curl_easy_perform(handle.get()), "connect WebSocket");
+  const auto connected = curl_easy_perform(handle.get());
+  if (connected == CURLE_ABORTED_BY_CALLBACK &&
+      stopped(stop_requested)) {
+    throw capture_stopped{};
+  }
+  check(connected, "connect WebSocket");
 
   const auto subscribe =
       json{{"type", "subscribe"},
            {"product_ids", options.product_ids},
-           {"channel", "market_trades"}}
+          {"channel", "market_trades"}}
           .dump();
-  send_all(handle.get(), subscribe, CURLWS_TEXT);
+  send_all(handle.get(), subscribe, CURLWS_TEXT, stop_requested);
   const auto heartbeat =
       json{{"type", "subscribe"},
            {"product_ids", options.product_ids},
-           {"channel", "heartbeats"}}
+          {"channel", "heartbeats"}}
           .dump();
-  send_all(handle.get(), heartbeat, CURLWS_TEXT);
+  send_all(handle.get(), heartbeat, CURLWS_TEXT, stop_requested);
   return handle;
 }
 
@@ -138,7 +199,9 @@ std::uint64_t wall_time_ns() noexcept {
 
 }  // namespace
 
-capture_result capture_live(const capture_options& options) {
+capture_result capture_live(
+    const capture_options& options,
+    const std::function<bool()>& stop_requested) {
   if (options.output.empty() || options.product_ids.empty() ||
       options.duration.count() <= 0) {
     throw std::invalid_argument(
@@ -152,33 +215,29 @@ capture_result capture_live(const capture_options& options) {
   }
 
   curl_global_state curl_state;
-  std::ofstream output(options.output, std::ios::trunc);
-  if (!output) {
-    throw std::runtime_error(
-        "cannot create capture: " + options.output.string());
-  }
-  output
-      << json{{"type", "metadata"},
-              {"format", "bengal-market-capture"},
-              {"version", 1},
-              {"source", "coinbase-advanced-trade"},
-              {"endpoint", options.endpoint},
-              {"product_ids", options.product_ids}}
-             .dump()
-      << '\n';
+  detail::atomic_output output(options.output);
+  output.write_line(
+      json{{"type", "metadata"},
+           {"format", "bengal-market-capture"},
+           {"version", 1},
+           {"source", "coinbase-advanced-trade"},
+           {"endpoint", options.endpoint},
+           {"product_ids", options.product_ids}}
+          .dump());
 
   capture_result result;
   std::string last_error;
   std::uint64_t connection_id = 0;
   std::uint64_t consecutive_failures = 0;
   const auto deadline = clock_type::now() + options.duration;
-  while (clock_type::now() < deadline) {
+  while (clock_type::now() < deadline && !stopped(stop_requested)) {
     ++connection_id;
     try {
-      auto handle = connect(options);
+      auto handle = connect(options, stop_requested);
       std::string message;
       std::array<char, 64 * 1024> buffer{};
-      while (clock_type::now() < deadline) {
+      while (clock_type::now() < deadline &&
+             !stopped(stop_requested)) {
         std::size_t received = 0;
         const curl_ws_frame* metadata = nullptr;
         const auto code =
@@ -188,7 +247,7 @@ capture_result capture_live(const capture_options& options) {
                          &received,
                          &metadata);
         if (code == CURLE_AGAIN) {
-          wait_socket(handle.get(), POLLIN, 250);
+          wait_socket(handle.get(), POLLIN, 250, stop_requested);
           continue;
         }
         check(code, "receive WebSocket frame");
@@ -220,26 +279,22 @@ capture_result capture_live(const capture_options& options) {
         if ((metadata->flags & CURLWS_CONT) != 0U) {
           continue;
         }
-        output
-            << json{{"type", "frame"},
-                    {"received_ns", wall_time_ns()},
-                    {"connection_id", connection_id},
-                    {"payload", message}}
-                   .dump()
-            << '\n';
-        if (!output) {
-          throw std::runtime_error("failed writing capture");
-        }
+        output.write_line(
+            json{{"type", "frame"},
+                 {"received_ns", wall_time_ns()},
+                 {"connection_id", connection_id},
+                 {"payload", message}}
+                .dump());
         ++result.frames;
         consecutive_failures = 0;
         message.clear();
       }
+    } catch (const capture_stopped&) {
+      break;
     } catch (const std::exception& error) {
       last_error = error.what();
-      if (!output) {
-        throw;
-      }
-      if (clock_type::now() >= deadline) {
+      if (clock_type::now() >= deadline ||
+          stopped(stop_requested)) {
         break;
       }
       ++result.reconnects;
@@ -248,19 +303,21 @@ capture_result capture_live(const capture_options& options) {
         throw std::runtime_error(
             "capture stopped after repeated failures: " + last_error);
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(250));
+      for (int attempt = 0;
+           attempt < 25 && !stopped(stop_requested);
+           ++attempt) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
     }
   }
-  output.flush();
-  if (!output) {
-    throw std::runtime_error("failed finalizing capture");
-  }
-  if (result.frames == 0) {
+  result.interrupted = stopped(stop_requested);
+  if (result.frames == 0 && !result.interrupted) {
     throw std::runtime_error(
         "capture received no frames" +
         (last_error.empty() ? std::string{}
                             : std::string(": ") + last_error));
   }
+  output.commit();
   return result;
 }
 

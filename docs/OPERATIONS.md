@@ -59,18 +59,24 @@ sha256sum capture.jsonl > capture.jsonl.sha256
 gzip --keep capture.jsonl
 ```
 
-Deleting or truncating an open output file is unsupported. Disk-full, short
-write, flush, and close failures must be visible in process status.
+Capture writes to `<output>.part`. The final output and partial path must both
+be absent at startup. Deleting or truncating an open partial file is
+unsupported. Disk-full, short-write, sync, close, link, unlink, and directory
+sync failures are visible in process status.
 
 ## Shutdown and Recovery
 
-Allow the configured duration to expire for a finalized recording. A signal or
-forced termination can interrupt a write and leave a truncated final line;
-replay counts malformed lines as parse errors.
+The configured duration, `SIGINT`, and `SIGTERM` all use the same finalization
+path. Handled signals sync and atomically publish the recording, then exit with
+status 130 or 143 respectively. Existing destinations are never replaced.
+
+`SIGKILL`, process crashes, power loss, and filesystem failures can leave a
+`.part` file. Bengal Market does not automatically resume, repair, or promote
+that file.
 
 After an abnormal stop:
 
-1. preserve the original file;
+1. preserve the `.part` file;
 2. verify its hash if captured externally;
 3. run replay validation without modifying it; and
 4. document any recovery performed on a copy.

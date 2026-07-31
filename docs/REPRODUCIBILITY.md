@@ -14,7 +14,7 @@ entropy, locale, or unordered iteration.
 ## Build From a Tag
 
 ```sh
-git clone --branch v0.1.0 --depth 1 \
+git clone --branch v0.2.0 --depth 1 \
   https://github.com/jaeHbk/bengal-market.git
 cd bengal-market
 
@@ -25,8 +25,7 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-This example becomes valid when `v0.1.0` is published. Verify release checksums
-against GitHub before using a downloaded artifact.
+Verify release checksums against GitHub before using a downloaded artifact.
 
 ## Dependency Pins
 
@@ -52,40 +51,44 @@ LC_ALL=C ./build/bengal-market generate \
   --output fixture-1m.jsonl
 sha256sum fixture-1m.jsonl
 
-LC_ALL=C ./build/bengal-market replay \
-  --input fixture-1m.jsonl --engine bengal
-LC_ALL=C ./build/bengal-market replay \
-  --input fixture-1m.jsonl --engine standard
+LC_ALL=C ./build/bengal-market benchmark \
+  --input fixture-1m.jsonl \
+  --output evidence \
+  --runs 10 \
+  --warmup 1
 ```
 
-Both replays must process the same events and produce the same checksum. Save
-stdout, stderr, exit status, and fixture digest.
+Both engines in every measured pair must process the same events and produce
+the same checksum. Preserve the generated bundle and fixture digest.
 
 ## Evidence Bundle
 
 ```text
 evidence/
-  README.txt
-  source.txt
+  fixture.sha256
+  manifest.json
+  report.html
+  runs/
+    run-001-order-01-bengal.json
+    run-001-order-01-bengal.stderr.txt
+    ...
+
+external-build-evidence/
   configure.txt
   CMakeCache.txt
-  environment.txt
-  fixture.sha256
-  command.txt
-  run-01.json
-  run-02.json
-  ...
 ```
 
-`source.txt` identifies the Bengal Market tag/commit, dirty state, Bengal pin,
-and dependency pins. `environment.txt` contains metadata listed in
-`BENCHMARKING.md`. Never hand-edit raw run files.
+`manifest.json` identifies the Bengal Market version and source revision,
+Bengal version, executable and fixture hashes, runtime environment, command
+shape, aggregate distributions, and raw-run index. Preserve the configure
+command and `CMakeCache.txt` alongside the generated bundle. Never hand-edit
+raw run files.
 
 ## Release Artifact Verification
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -tzf bengal-market-v0.1.0-linux-x86_64.tar.gz
+tar -tzf bengal-market-v0.2.0-linux-x86_64.tar.gz
 ```
 
 Release binaries are convenience artifacts. Building tagged source in a

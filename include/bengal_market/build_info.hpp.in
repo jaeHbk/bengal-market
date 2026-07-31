@@ -1,0 +1,10 @@
+#pragma once
+
+#include <string_view>
+
+namespace bengal_market {
+
+inline constexpr std::string_view source_revision =
+    "@BENGAL_MARKET_SOURCE_REVISION@";
+
+}  // namespace bengal_market

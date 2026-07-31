@@ -24,8 +24,9 @@ Before tagging:
 2. Update `CHANGELOG.md`, including compatibility and dependency changes.
 3. Confirm README commands agree with the CLI usage.
 4. Run GCC and Clang CI plus ASan/UBSan and TSan.
-5. Generate a fixture and confirm matching engine counts and checksums.
-6. Complete a short public capture and replay it without credentials.
+5. Generate a fixture and complete a 10-pair benchmark bundle.
+6. Complete a short public capture, interrupt it with `SIGTERM`, and replay the
+   atomically published recording without credentials.
 7. Verify the install tree from a clean build.
 8. Confirm no captures, credentials, local paths, or scratch data are included.
 
@@ -46,8 +47,8 @@ Run validation from a clean worktree.
 Use an annotated SemVer tag:
 
 ```sh
-git tag -a v0.1.0 -m "bengal-market 0.1.0"
-git push origin v0.1.0
+git tag -a v0.2.0 -m "bengal-market 0.2.0"
+git push origin v0.2.0
 ```
 
 Release automation tests, installs, creates a Linux x86-64 archive, generates
@@ -60,7 +61,7 @@ Do not move a published tag. Correct a release with a new patch version.
 The final notes must state:
 
 ```text
-Bengal Market: 0.1.0
+Bengal Market: 0.2.0
 Bengal dependency: vX.Y.Z (commit ...)
 Recording format: reads v1, writes v1
 Artifact: Linux x86-64, pinned static libcurl with platform OpenSSL runtime
@@ -74,7 +75,7 @@ trading, or commercial broker latency claims.
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -tzf bengal-market-v0.1.0-linux-x86_64.tar.gz
+tar -tzf bengal-market-v0.2.0-linux-x86_64.tar.gz
 ```
 
 After extraction, run fixture generation, replay, and comparison. Inspect

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(BENGAL_MARKET_VERSION 0.1.0)
+set(BENGAL_MARKET_VERSION 0.2.0)
 
 project(
   BengalMarket
@@ -17,6 +17,37 @@ include(GNUInstallDirs)
 configure_file(
   include/bengal_market/version.hpp.in
   generated/bengal_market/version.hpp
+  @ONLY
+)
+
+set(BENGAL_MARKET_SOURCE_REVISION "unknown")
+find_package(Git QUIET)
+if(Git_FOUND)
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    RESULT_VARIABLE _bengal_market_git_result
+    OUTPUT_VARIABLE _bengal_market_git_revision
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+  )
+  if(_bengal_market_git_result EQUAL 0)
+    set(BENGAL_MARKET_SOURCE_REVISION "${_bengal_market_git_revision}")
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" status --porcelain
+      WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+      OUTPUT_VARIABLE _bengal_market_git_status
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+    )
+    if(_bengal_market_git_status)
+      string(APPEND BENGAL_MARKET_SOURCE_REVISION "-dirty")
+    endif()
+  endif()
+endif()
+configure_file(
+  include/bengal_market/build_info.hpp.in
+  generated/bengal_market/build_info.hpp
   @ONLY
 )
 
@@ -86,6 +117,20 @@ target_link_libraries(
   PRIVATE nlohmann_json::nlohmann_json Threads::Threads
 )
 
+add_library(bengal_market_benchmark STATIC src/benchmark.cpp)
+target_compile_features(bengal_market_benchmark PUBLIC cxx_std_20)
+target_include_directories(
+  bengal_market_benchmark
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+)
+target_link_libraries(
+  bengal_market_benchmark
+  PUBLIC Bengal::Core
+  PRIVATE nlohmann_json::nlohmann_json Threads::Threads
+)
+
 if(BENGAL_MARKET_BUILD_LIVE)
   if(BENGAL_MARKET_USE_SYSTEM_CURL)
     find_package(CURL 7.86 REQUIRED)
@@ -131,14 +176,33 @@ if(BENGAL_MARKET_BUILD_LIVE)
     set(CURL_DISABLE_INSTALL ON CACHE BOOL "" FORCE)
     set(CURL_ENABLE_EXPORT_TARGET OFF CACHE BOOL "" FORCE)
     set(CURL_DISABLE_WEBSOCKETS OFF CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_DICT ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_FILE ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_FTP ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_GOPHER ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_IMAP ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_IPFS ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_LDAP ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_LDAPS ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_MQTT ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_POP3 ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_RTSP ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_SMB ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_SMTP ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_TELNET ON CACHE BOOL "" FORCE)
+    set(CURL_DISABLE_TFTP ON CACHE BOOL "" FORCE)
     set(CURL_ENABLE_SSL ON CACHE BOOL "" FORCE)
     set(CURL_USE_OPENSSL ON CACHE BOOL "" FORCE)
+    set(CURL_USE_LIBSSH OFF CACHE BOOL "" FORCE)
+    set(CURL_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
     set(CURL_ZLIB OFF CACHE BOOL "" FORCE)
     set(CURL_BROTLI OFF CACHE BOOL "" FORCE)
     set(CURL_ZSTD OFF CACHE BOOL "" FORCE)
     set(USE_LIBIDN2 OFF CACHE BOOL "" FORCE)
     set(CURL_USE_LIBPSL OFF CACHE BOOL "" FORCE)
     set(USE_NGHTTP2 OFF CACHE BOOL "" FORCE)
+    set(CURL_USE_GSSAPI OFF CACHE BOOL "" FORCE)
+    set(USE_GSASL OFF CACHE BOOL "" FORCE)
     set(PICKY_COMPILER OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(
       curl
@@ -174,12 +238,23 @@ if(BENGAL_MARKET_BUILD_LIVE)
 endif()
 
 add_executable(bengal-market src/main.cpp)
-target_link_libraries(bengal-market PRIVATE bengal_market_core)
+target_link_libraries(
+  bengal-market
+  PRIVATE
+    bengal_market_core
+    bengal_market_benchmark
+    nlohmann_json::nlohmann_json
+)
 if(BENGAL_MARKET_BUILD_LIVE)
   target_link_libraries(bengal-market PRIVATE bengal_market_live)
 endif()
 
-set(bengal_market_targets bengal_market_core bengal-market)
+set(
+  bengal_market_targets
+  bengal_market_core
+  bengal_market_benchmark
+  bengal-market
+)
 if(TARGET bengal_market_live)
   list(APPEND bengal_market_targets bengal_market_live)
 endif()
@@ -206,8 +281,13 @@ if(BENGAL_MARKET_ENABLE_SANITIZERS)
 endif()
 
 if(BUILD_TESTING AND BENGAL_MARKET_BUILD_TESTS)
+  find_package(Python3 3.8 REQUIRED COMPONENTS Interpreter)
   add_executable(bengal_market_tests tests/tests.cpp)
   target_link_libraries(bengal_market_tests PRIVATE bengal_market_core)
+  target_include_directories(
+    bengal_market_tests
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
+  )
   target_compile_options(
     bengal_market_tests
     PRIVATE
@@ -224,6 +304,30 @@ if(BUILD_TESTING AND BENGAL_MARKET_BUILD_TESTS)
     )
   endif()
   add_test(NAME bengal_market_tests COMMAND bengal_market_tests)
+  add_test(
+    NAME bengal_market_benchmark_cli
+    COMMAND
+      "${Python3_EXECUTABLE}"
+      "${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmark_cli_test.py"
+      "$<TARGET_FILE:bengal-market>"
+  )
+  set_tests_properties(
+    bengal_market_benchmark_cli
+    PROPERTIES TIMEOUT 120
+  )
+  if(BENGAL_MARKET_BUILD_LIVE)
+    add_test(
+      NAME bengal_market_capture_signal
+      COMMAND
+        "${Python3_EXECUTABLE}"
+        "${CMAKE_CURRENT_SOURCE_DIR}/tests/capture_signal_test.py"
+        "$<TARGET_FILE:bengal-market>"
+    )
+    set_tests_properties(
+      bengal_market_capture_signal
+      PROPERTIES TIMEOUT 30
+    )
+  endif()
 endif()
 
 install(TARGETS bengal-market RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})

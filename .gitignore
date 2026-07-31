@@ -8,8 +8,10 @@ compile_commands.json
 # Generated capture and benchmark data
 /*.jsonl
 /*.jsonl.gz
+/*.sha256
 /artifacts/
 /benchmark-results/
+/evidence*/
 
 # Editors and operating systems
 .cache/

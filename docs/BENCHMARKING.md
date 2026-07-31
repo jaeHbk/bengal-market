@@ -32,8 +32,8 @@ report it as a behavioral difference rather than a performance win.
 3. Record kernel, CPU, memory, power governor, and virtualization.
 4. Hash the exact JSONL fixture and record command-line options.
 5. Stop unrelated high-load work and use a stable CPU/power policy.
-6. Execute at least one unreported warm-up.
-7. Run at least 10 measured process invocations, alternating engine order.
+6. Execute at least one unreported warm-up pair.
+7. Run at least 10 measured pairs, alternating engine order.
 8. Retain every raw report, not only the fastest result.
 9. Report median and dispersion across runs with per-run p50/p95/p99.
 10. Repeat on another machine before making a general claim.
@@ -46,13 +46,16 @@ Example:
   --output fixture-1m.jsonl
 sha256sum fixture-1m.jsonl
 
-./build/bengal-market replay --input fixture-1m.jsonl --engine bengal
-./build/bengal-market replay --input fixture-1m.jsonl --engine standard
-./build/bengal-market compare --input fixture-1m.jsonl
+./build/bengal-market benchmark \
+  --input fixture-1m.jsonl \
+  --output evidence-1m \
+  --runs 10 \
+  --warmup 1
 ```
 
-The current CLI performs one run per invocation. A benchmark harness must start
-fresh processes and retain each JSON report.
+The harness starts one fresh process per engine replay, alternates engine
+order, retains every JSON report and stderr stream, and publishes the bundle
+only after all reports pass correctness checks.
 
 ## Environment Capture
 
@@ -72,6 +75,13 @@ sha256sum fixture-1m.jsonl
 Also retain the configure command and `CMakeCache.txt`. State whether the run
 used a container, virtual machine, CPU affinity, elevated scheduling policy, or
 modified kernel settings.
+
+The benchmark manifest automatically records kernel, architecture, CPU model,
+logical CPU count, memory, scaling governor when available, compiler, Bengal
+and Bengal Market versions, source revision, executable SHA-256, fixture
+SHA-256, run count, warm-up count, and process-order policy. Build configuration
+and `CMakeCache.txt` remain external evidence because they are not reliably
+recoverable from an installed executable.
 
 ## Metrics
 

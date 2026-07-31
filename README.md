@@ -18,8 +18,11 @@ market-beating, or broker-latency claims.
 - Generate deterministic offline fixtures without network access.
 - Replay the same input through a selected bounded pipeline.
 - Compare Bengal and standard C++ implementations using the same data.
+- Run repeated comparisons in fresh processes and retain an evidence bundle.
 - Report sequence gaps, parse failures, backpressure, drops, checksums, and
   bounded stage-latency percentiles.
+- Finalize live recordings atomically on duration expiry, `SIGINT`, or
+  `SIGTERM`.
 
 ## Requirements
 
@@ -28,12 +31,14 @@ market-beating, or broker-latency claims.
 - CMake 3.20 or newer
 - OpenSSL development headers for the pinned live-capture transport
 - Git for resolving pinned source dependencies
+- Python 3.8 or newer when building integration tests
+- GNU `sha256sum` when running the benchmark command
 
 Ubuntu and Debian users can install build dependencies with:
 
 ```sh
 sudo apt-get update
-sudo apt-get install -y build-essential cmake git libssl-dev ninja-build
+sudo apt-get install -y build-essential cmake git libssl-dev ninja-build python3
 ```
 
 ## Build
@@ -83,6 +88,20 @@ Compare both pipeline implementations against the same recording:
 ./build/bengal-market compare --input fixture.jsonl
 ```
 
+Create a reproducible multi-process benchmark bundle:
+
+```sh
+./build/bengal-market benchmark \
+  --input fixture.jsonl \
+  --output evidence \
+  --runs 10 \
+  --warmup 1
+```
+
+`evidence/manifest.json` contains aggregate distributions and provenance;
+`evidence/report.html` is a human-readable summary; and `evidence/runs/`
+retains every raw replay report and stderr stream.
+
 Capture the public Coinbase feed for a bounded interval:
 
 ```sh
@@ -99,10 +118,17 @@ or JWT. `--duration` is an integer number of seconds.
 
 ### `capture`
 
-`capture --output FILE [--product ID] [--duration SECONDS]` connects to the
-public feed and records complete text messages. The default product is
-`BTC-USD`; the default duration is 30 seconds. Reconnection creates a visible
-connection boundary and does not fabricate missing data.
+`capture --output FILE [--product ID] [--duration SECONDS] [--endpoint URL]`
+connects to the public feed and records complete text messages. The default
+product is `BTC-USD`; the default duration is 30 seconds. Reconnection creates
+a visible connection boundary and does not fabricate missing data. Custom
+endpoints support controlled testing and are not additional supported
+providers.
+
+Capture writes to `FILE.part` while running. A normal deadline, `SIGINT`, or
+`SIGTERM` syncs and atomically publishes `FILE`; a handled signal exits with
+the conventional `128 + signal` status after finalization. Existing
+destination and partial files are never overwritten.
 
 ### `generate`
 
@@ -123,6 +149,18 @@ against identical input and writes a combined JSON report. It exits nonzero
 when event counts or checksums differ. It does not interpret a local pipeline
 result as end-to-end market latency or financial performance.
 
+### `benchmark`
+
+`benchmark --input FILE --output DIR [--runs N] [--warmup N]` executes each
+engine in a fresh child process. Engine order alternates for every measured
+pair. The default is ten measured pairs after one warm-up pair. The output
+directory and its `.part` path must not already exist.
+
+The command exits nonzero unless all runs have matching frame counts,
+data-quality metrics, event counts, and checksums with zero parse errors and
+drops. See [Benchmark Report](docs/BENCHMARK_REPORT.md) for the bundle
+contract.
+
 ## Data and Metrics
 
 Recordings use versioned JSON Lines: one metadata record followed by raw frame
@@ -142,8 +180,10 @@ valid improvement. See [Benchmarking](docs/BENCHMARKING.md) and
 - [Architecture](docs/ARCHITECTURE.md)
 - [Data format](docs/DATA_FORMAT.md)
 - [Benchmark methodology](docs/BENCHMARKING.md)
+- [Benchmark report format](docs/BENCHMARK_REPORT.md)
 - [Operations](docs/OPERATIONS.md)
 - [Reproducibility](docs/REPRODUCIBILITY.md)
+- [0.2 release validation](docs/VALIDATION_0.2.md)
 - [0.1 release validation](docs/VALIDATION_0.1.md)
 - [Release process](docs/RELEASING.md)
 - [Security policy](SECURITY.md)
@@ -151,8 +191,8 @@ valid improvement. See [Benchmarking](docs/BENCHMARKING.md) and
 
 ## Status
 
-Bengal Market is pre-1.0 software. Recording format changes are versioned, but
-CLI and report fields may change between minor releases until 1.0. Release
+Bengal Market 0.2 is pre-1.0 software. Recording format changes are versioned,
+but CLI and report fields may change between minor releases until 1.0. Release
 notes identify compatibility changes and the exact Bengal release consumed.
 
 ## License

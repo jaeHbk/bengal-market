@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -18,10 +19,13 @@ struct capture_options {
 struct capture_result {
   std::uint64_t frames{0};
   std::uint64_t reconnects{0};
+  bool interrupted{false};
 };
 
 #if defined(BENGAL_MARKET_HAS_LIVE)
-capture_result capture_live(const capture_options& options);
+capture_result capture_live(
+    const capture_options& options,
+    const std::function<bool()>& stop_requested = {});
 #endif
 
 }  // namespace bengal_market
