@@ -28,20 +28,28 @@ uses base-repository build tools and rejects imported glibc symbol versions
 newer than 2.34 or OpenSSL symbol versions newer than 3.0.0. Product behavior
 and data formats are unchanged.
 
-## Release Completion
+## Published Release
 
-For an untagged 0.2.2 commit:
+- Release: <https://github.com/jaeHbk/bengal-market/releases/tag/v0.2.2>
+- Tag commit: `48d7005413be919dbea65a3086c19ef257196380`
+- CI: `30667797416`
+- Sanitizers: `30667797412` (successful second attempt after a hosted package
+  installation stall)
+- Release workflow: `30668358455`
+- Archive SHA-256:
+  `5e21746cffa284f3c4317f745bb0f16da7896bb8c0c74d60e088bd6b7119834c`
 
-1. Confirm CI and sanitizer workflows pass on `main`.
-2. Create and push annotated tag `v0.2.2`.
-3. Wait for the Release workflow, then download the Linux package artifact and
-   run it on a glibc 2.34 host.
-4. Inspect `readelf --version-info`; no GLIBC requirement may exceed 2.34 and
-   no OpenSSL requirement may exceed 3.0.0.
-5. Verify `SHA256SUMS`, extraction,
-   `--version`, fixture generation, replay, and a two-pair benchmark.
-6. Add a note to the GitHub 0.2.0 release that its Linux binary is superseded
-   by 0.2.2.
+The release workflow completed build, tests, installation, benchmark, and both
+runtime symbol gates. Its archive step hit Git safe-directory protection in
+the job container. The assets were recovered from the exact immutable tag with
+the same Rocky Linux 9 build and release commands, then downloaded from GitHub
+and verified again on a glibc 2.34 host. The public binary reports 0.2.2,
+requires at most `GLIBC_2.34` and `OPENSSL_3.0.0`, and completes a comparable
+two-pair benchmark. The workflow on `main` now trusts the container workspace
+so future tagged releases can archive automatically.
+
+The 0.2.0 release notes direct binary users to 0.2.2. Do not move or replace
+the 0.2.0, 0.2.1, or 0.2.2 tags.
 
 Never report pipeline benchmark results as market latency, profitability, or
 market-beating performance. See `docs/BENCHMARKING.md` and

@@ -6,6 +6,11 @@ All notable changes are recorded here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Containerized release jobs mark the checked-out workspace as a trusted Git
+  directory before reading source and archive metadata.
+
 ## [0.2.2] - 2026-07-31
 
 ### Fixed
