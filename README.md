@@ -27,6 +27,7 @@ market-beating, or broker-latency claims.
 ## Requirements
 
 - Linux on x86-64 or ARM64
+- glibc 2.34 or newer and OpenSSL 3.0 for the published Linux x86-64 binary
 - C++20 compiler: GCC 11 or Clang 14, or newer
 - CMake 3.20 or newer
 - OpenSSL development headers for the pinned live-capture transport
@@ -68,6 +69,11 @@ Tagged source pins Bengal `v1.0.0` and nlohmann/json to immutable commits. To
 validate a local Bengal checkout, configure with
 `-DBENGAL_SOURCE_DIR=/absolute/path/to/bengal`. Results made with an override
 must identify the Bengal commit and must not be presented as release results.
+
+The published Linux x86-64 archive is built on Rocky Linux 9. Release
+automation rejects binaries requiring glibc newer than 2.34. Building from
+source remains the supported path for other architectures or older Linux
+distributions.
 
 ## Quick Start
 

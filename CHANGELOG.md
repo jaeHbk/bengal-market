@@ -6,6 +6,23 @@ All notable changes are recorded here. This project follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-31
+
+### Fixed
+
+- Linux release artifacts are built on Rocky Linux 9 and require glibc 2.34
+  rather than the glibc 2.38 symbols introduced by the Ubuntu 24.04 toolchain.
+- Release automation rejects binaries that require a glibc version newer than
+  2.34.
+
+### Compatibility
+
+- Source behavior, CLI, and data formats are unchanged from 0.2.0.
+- Linux x86-64 convenience binaries require glibc 2.34 or newer and OpenSSL
+  3.0.
+- The 0.2.1 binary supersedes the incompatible 0.2.0 binary; the published
+  0.2.0 tag and artifacts remain immutable.
+
 ## [0.2.0] - 2026-07-31
 
 ### Added
@@ -59,6 +76,7 @@ Dependencies:
 - curl `8.17.0` (`400fffa90f30c7a2dc762fa33009d24851bd2016`)
 - nlohmann/json `v3.11.3`
 
-[Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/jaeHbk/bengal-market/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaeHbk/bengal-market/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaeHbk/bengal-market/releases/tag/v0.1.0

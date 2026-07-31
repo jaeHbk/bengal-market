@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(BENGAL_MARKET_VERSION 0.2.0)
+set(BENGAL_MARKET_VERSION 0.2.1)
 
 project(
   BengalMarket

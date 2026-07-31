@@ -12,10 +12,19 @@ jobs:
   linux-x86_64:
     name: Release Linux x86-64
     runs-on: ubuntu-24.04
+    container: rockylinux:9
     timeout-minutes: 25
     env:
       CTEST_OUTPUT_ON_FAILURE: "1"
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            binutils cmake gcc-c++ git gzip ninja-build openssl-devel python3 tar
+
       - name: Check out source
         uses: actions/checkout@v5
         with:
@@ -35,11 +44,6 @@ jobs:
             echo "Tag does not match project version ${project_version}." >&2
             exit 1
           fi
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake g++ git libssl-dev ninja-build python3
 
       - name: Configure release
         run: >-
@@ -71,6 +75,26 @@ jobs:
             --output release-evidence \
             --runs 2 --warmup 1
           test -f release-evidence/manifest.json
+
+      - name: Validate runtime compatibility
+        run: |
+          binary=staging/usr/local/bin/bengal-market
+          required_glibc="$(
+            readelf --version-info "${binary}" |
+              grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' |
+              sed 's/^GLIBC_//' |
+              sort -Vu
+          )"
+          max_glibc="$(
+            printf '%s\n' 2.34 "${required_glibc}" |
+              sort -V |
+              tail -n 1
+          )"
+          if [[ "${max_glibc}" != "2.34" ]]; then
+            echo "Release requires glibc ${max_glibc}; maximum is 2.34." >&2
+            exit 1
+          fi
+          readelf --version-info "${binary}"
 
       - name: Create reproducible archive
         run: |

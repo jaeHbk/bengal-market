@@ -47,8 +47,8 @@ Run validation from a clean worktree.
 Use an annotated SemVer tag:
 
 ```sh
-git tag -a v0.2.0 -m "bengal-market 0.2.0"
-git push origin v0.2.0
+git tag -a v0.2.1 -m "bengal-market 0.2.1"
+git push origin v0.2.1
 ```
 
 Release automation tests, installs, creates a Linux x86-64 archive, generates
@@ -61,10 +61,10 @@ Do not move a published tag. Correct a release with a new patch version.
 The final notes must state:
 
 ```text
-Bengal Market: 0.2.0
+Bengal Market: 0.2.1
 Bengal dependency: vX.Y.Z (commit ...)
 Recording format: reads v1, writes v1
-Artifact: Linux x86-64, pinned static libcurl with platform OpenSSL runtime
+Artifact: Linux x86-64, glibc 2.34+, pinned static libcurl with OpenSSL 3.0
 ```
 
 Include notable changes, upgrade instructions, known limitations, and evidence
@@ -75,15 +75,18 @@ trading, or commercial broker latency claims.
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -tzf bengal-market-v0.2.0-linux-x86_64.tar.gz
+tar -tzf bengal-market-v0.2.1-linux-x86_64.tar.gz
 ```
 
 After extraction, run fixture generation, replay, and comparison. Inspect
-dynamic dependencies and confirm libcurl WebSocket support on the host.
+dynamic dependencies, confirm no required glibc symbol version exceeds 2.34,
+and confirm libcurl WebSocket support on the host.
 
 ## Reproducibility Notes
 
-Release automation normalizes archive path order, timestamps, owner, and group.
+Release automation builds the Linux binary in Rocky Linux 9 and rejects glibc
+requirements newer than 2.34. It normalizes archive path order, timestamps,
+owner, and group.
 The archive still contains compiler- and distribution-specific binaries and is
 not promised to rebuild byte-identically with a different toolchain. Preserve
 CI logs and uploaded artifacts as release provenance.
