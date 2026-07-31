@@ -14,7 +14,7 @@ entropy, locale, or unordered iteration.
 ## Build From a Tag
 
 ```sh
-git clone --branch v0.2.1 --depth 1 \
+git clone --branch v0.2.2 --depth 1 \
   https://github.com/jaeHbk/bengal-market.git
 cd bengal-market
 
@@ -88,14 +88,14 @@ raw run files.
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -tzf bengal-market-v0.2.1-linux-x86_64.tar.gz
+tar -tzf bengal-market-v0.2.2-linux-x86_64.tar.gz
 ```
 
 Release binaries are built on Rocky Linux 9 and require glibc 2.34 or newer
-and OpenSSL 3.0. Release automation checks imported glibc symbol versions.
-They remain convenience artifacts: building tagged source in a controlled
-toolchain provides stronger reproducibility than expecting binaries from
-different compiler and libc versions to be identical.
+and OpenSSL 3.0. Release automation checks imported glibc and OpenSSL symbol
+versions. They remain convenience artifacts: building tagged source in a
+controlled toolchain provides stronger reproducibility than expecting binaries
+from different compiler and libc versions to be identical.
 
 ## Limits
 

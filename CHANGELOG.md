@@ -6,22 +6,41 @@ All notable changes are recorded here. This project follows
 
 ## [Unreleased]
 
-## [0.2.1] - 2026-07-31
+## [0.2.2] - 2026-07-31
 
 ### Fixed
 
-- Linux release artifacts are built on Rocky Linux 9 and require glibc 2.34
-  rather than the glibc 2.38 symbols introduced by the Ubuntu 24.04 toolchain.
-- Release automation rejects binaries that require a glibc version newer than
-  2.34.
+- Rocky Linux release packaging uses the base-repository `make` tool instead
+  of the unavailable `ninja-build` package.
+- The pinned curl transport omits unused verbose diagnostic strings so builds
+  against newer OpenSSL headers retain the OpenSSL 3.0 runtime baseline.
+- Release automation rejects binaries that require an OpenSSL symbol version
+  newer than 3.0.0.
 
 ### Compatibility
 
 - Source behavior, CLI, and data formats are unchanged from 0.2.0.
 - Linux x86-64 convenience binaries require glibc 2.34 or newer and OpenSSL
   3.0.
-- The 0.2.1 binary supersedes the incompatible 0.2.0 binary; the published
-  0.2.0 tag and artifacts remain immutable.
+- The 0.2.2 binary supersedes the incompatible 0.2.0 binary. No binary was
+  published for 0.2.1 because its release workflow failed during dependency
+  installation.
+
+## [0.2.1] - 2026-07-31
+
+### Fixed
+
+- Linux release automation builds on Rocky Linux 9 to target glibc 2.34 rather
+  than the glibc 2.38 symbols introduced by the Ubuntu 24.04 toolchain.
+- Release automation rejects binaries that require a glibc version newer than
+  2.34.
+
+### Compatibility
+
+- Source behavior, CLI, and data formats are unchanged from 0.2.0.
+- No binary artifact was published because Rocky Linux 9's enabled
+  repositories did not provide the configured `ninja-build` dependency.
+- The published 0.2.0 tag and artifacts remain immutable.
 
 ## [0.2.0] - 2026-07-31
 
@@ -76,7 +95,8 @@ Dependencies:
 - curl `8.17.0` (`400fffa90f30c7a2dc762fa33009d24851bd2016`)
 - nlohmann/json `v3.11.3`
 
-[Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/jaeHbk/bengal-market/compare/v0.2.2...HEAD
+[0.2.2]: https://github.com/jaeHbk/bengal-market/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/jaeHbk/bengal-market/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/jaeHbk/bengal-market/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/jaeHbk/bengal-market/releases/tag/v0.1.0

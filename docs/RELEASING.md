@@ -47,8 +47,8 @@ Run validation from a clean worktree.
 Use an annotated SemVer tag:
 
 ```sh
-git tag -a v0.2.1 -m "bengal-market 0.2.1"
-git push origin v0.2.1
+git tag -a v0.2.2 -m "bengal-market 0.2.2"
+git push origin v0.2.2
 ```
 
 Release automation tests, installs, creates a Linux x86-64 archive, generates
@@ -61,7 +61,7 @@ Do not move a published tag. Correct a release with a new patch version.
 The final notes must state:
 
 ```text
-Bengal Market: 0.2.1
+Bengal Market: 0.2.2
 Bengal dependency: vX.Y.Z (commit ...)
 Recording format: reads v1, writes v1
 Artifact: Linux x86-64, glibc 2.34+, pinned static libcurl with OpenSSL 3.0
@@ -75,12 +75,13 @@ trading, or commercial broker latency claims.
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -tzf bengal-market-v0.2.1-linux-x86_64.tar.gz
+tar -tzf bengal-market-v0.2.2-linux-x86_64.tar.gz
 ```
 
 After extraction, run fixture generation, replay, and comparison. Inspect
-dynamic dependencies, confirm no required glibc symbol version exceeds 2.34,
-and confirm libcurl WebSocket support on the host.
+dynamic dependencies, confirm no required glibc symbol version exceeds 2.34
+or OpenSSL symbol version exceeds 3.0.0, and confirm libcurl WebSocket support
+on the host.
 
 ## Reproducibility Notes
 

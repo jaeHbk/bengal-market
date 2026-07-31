@@ -23,7 +23,7 @@ jobs:
       - name: Install build dependencies
         run: |
           dnf install -y \
-            binutils cmake gcc-c++ git gzip ninja-build openssl-devel python3 tar
+            binutils cmake gcc-c++ git gzip make openssl-devel python3 tar
 
       - name: Check out source
         uses: actions/checkout@v5
@@ -47,7 +47,7 @@ jobs:
 
       - name: Configure release
         run: >-
-          cmake -S . -B build -G Ninja
+          cmake -S . -B build -G "Unix Makefiles"
           -DCMAKE_BUILD_TYPE=Release
           -DBENGAL_MARKET_BUILD_TESTS=ON
           -DBENGAL_MARKET_ENABLE_SANITIZERS=OFF
@@ -92,6 +92,21 @@ jobs:
           )"
           if [[ "${max_glibc}" != "2.34" ]]; then
             echo "Release requires glibc ${max_glibc}; maximum is 2.34." >&2
+            exit 1
+          fi
+          required_openssl="$(
+            readelf --version-info "${binary}" |
+              grep -oE 'OPENSSL_[0-9]+(\.[0-9]+)+' |
+              sed 's/^OPENSSL_//' |
+              sort -Vu
+          )"
+          max_openssl="$(
+            printf '%s\n' 3.0.0 "${required_openssl}" |
+              sort -V |
+              tail -n 1
+          )"
+          if [[ "${max_openssl}" != "3.0.0" ]]; then
+            echo "Release requires OpenSSL ${max_openssl}; maximum is 3.0.0." >&2
             exit 1
           fi
           readelf --version-info "${binary}"
