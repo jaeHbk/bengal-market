@@ -19,6 +19,11 @@ def run(*arguments: str) -> subprocess.CompletedProcess[str]:
 
 def main() -> int:
     binary = pathlib.Path(sys.argv[1]).resolve()
+    version_output = run(str(binary), "--version").stdout.strip()
+    version_prefix = "bengal-market "
+    assert version_output.startswith(version_prefix)
+    expected_version = version_output[len(version_prefix) :]
+    assert expected_version
     with tempfile.TemporaryDirectory(prefix="bengal-market-benchmark-") as root:
         directory = pathlib.Path(root)
         fixture = directory / "fixture.jsonl"
@@ -52,7 +57,7 @@ def main() -> int:
         assert manifest["comparable"] is True
         assert manifest["benchmark"]["fresh_process_per_replay"] is True
         assert manifest["benchmark"]["engine_order"] == "alternating"
-        assert manifest["tool"]["version"] == "0.2.0"
+        assert manifest["tool"]["version"] == expected_version
         assert len(manifest["tool"]["executable_sha256"]) == 64
         assert len(manifest["runs"]) == 4
         assert [
